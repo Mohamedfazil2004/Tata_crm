@@ -1,0 +1,21 @@
+=== TATA MOTORS CRM USER ACCOUNT LIST ===
+
+CAMPAIGN MANAGERS:
+- [ADMIN] Username: admin           | Full Name: System Administrator
+- [CAMPAIGN_TEAM] Username: swetha          | Full Name: Campaign Manager
+
+DEALER PARTNERS (MOTORS):
+- Username: lrn_motors      | Full Name: LRN Motors           | Dealer: LRN Motors Dealer Partner
+- Username: others_dealer   | Full Name: Others Dealer        | Dealer: Others Dealer Partner
+- Username: popular_hosur   | Full Name: Popular Hosur        | Dealer: Popular Hosur Dealer Partner
+- Username: premium_motors  | Full Name: Premium Motors       | Dealer: Premium Motors Dealer Partner
+- Username: skma            | Full Name: SKMA                 | Dealer: SKMA Dealer Partner
+- Username: sri_rayan       | Full Name: Sri Rayan Autocare   | Dealer: Sri Rayan Dealer Partner
+- Username: svca_motors     | Full Name: SVCA Motors          | Dealer: SVCA Motors Dealer Partner
+- Username: urd_motors      | Full Name: URD Motors           | Dealer: URD Motors Dealer Partner
+- Username: vee_vee_motors  | Full Name: Vee Vee Motors       | Dealer: Vee Vee Motors Dealer Partner
+- Username: vetri_motors    | Full Name: Vetri Motors         | Dealer: Vetri Motors Dealer Partner
+- Username: vst_chennai     | Full Name: VST Chennai          | Dealer: VST Chennai Dealer Partner
+- Username: vst_salem       | Full Name: VST Salem            | Dealer: VST Salem Dealer Partner
+- Username: vst_trichy      | Full Name: VST Trichy           | Dealer: VST Trichy Dealer Partner
+- Username: xps_motors      | Full Name: XPS Motors           | Dealer: XPS Motors Dealer Partner
