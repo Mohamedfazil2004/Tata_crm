@@ -52,17 +52,19 @@ async function setupDatabase() {
   `);
   console.log('✅ Dealers table created');
 
-  // District-Dealer mapping table
+  // District-Dealer mapping table (Updated Formate)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS district_dealer_mapping (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      district VARCHAR(100) NOT NULL,
-      district_normalized VARCHAR(100) NOT NULL,
       dealer_id INT NOT NULL,
+      dealer_name VARCHAR(200),
+      dealer_district VARCHAR(100) NOT NULL,
+      district_normalized VARCHAR(100) NOT NULL,
       FOREIGN KEY (dealer_id) REFERENCES dealers(id) ON DELETE CASCADE,
       UNIQUE KEY unique_district (district_normalized)
     )
   `);
+
   console.log('✅ District-Dealer mapping table created');
 
   // Master leads table
@@ -77,8 +79,9 @@ async function setupDatabase() {
       dealer_id INT,
       dealer_name VARCHAR(200),
       follow_up_date DATE,
-      voice_of_customer TEXT,
-      consolidated_remark VARCHAR(500),
+      telecaller_remark TEXT,
+      dse_follow_up_date DATE,
+      customer_response TEXT,
       status ENUM('In Progress','On Call','Completed') DEFAULT 'In Progress',
       customer_appointment_date DATE,
       customer_location VARCHAR(255),

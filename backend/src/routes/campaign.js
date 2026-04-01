@@ -7,7 +7,8 @@ const router = express.Router();
 router.get('/metrics', authenticate, authorize('admin', 'campaign_team'), async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT cm.*, u.full_name as entered_by_name
+      SELECT cm.*, u.full_name as entered_by_name,
+             CASE WHEN cm.total_leads > 0 THEN ROUND(cm.ad_spend / cm.total_leads, 2) ELSE 0 END as cost_per_lead
       FROM campaign_metrics cm
       LEFT JOIN users u ON cm.entered_by = u.id
       ORDER BY cm.metric_date DESC
@@ -19,8 +20,8 @@ router.get('/metrics', authenticate, authorize('admin', 'campaign_team'), async 
   }
 });
 
-// POST /api/campaign/metrics - Add/update campaign metric
-router.post('/metrics', authenticate, authorize('admin', 'campaign_team'), async (req, res) => {
+// POST /api/campaign/metrics - Add/update campaign metric (ENTRY ONLY FOR CAMPAIGN TEAM)
+router.post('/metrics', authenticate, authorize('campaign_team'), async (req, res) => {
   try {
     const { metric_date, total_leads, ad_spend } = req.body;
     if (!metric_date) return res.status(400).json({ success: false, message: 'Date is required' });
@@ -36,6 +37,7 @@ router.post('/metrics', authenticate, authorize('admin', 'campaign_team'), async
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 
 // DELETE /api/campaign/metrics/:date
 router.delete('/metrics/:date', authenticate, authorize('admin'), async (req, res) => {

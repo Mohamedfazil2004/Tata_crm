@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertCircle, Calendar, DollarSign, Users, Award, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertCircle, Calendar, DollarSign, Users, Award, Plus, X } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 function MetricCard({ label, value, icon: Icon, color }) {
   return (
@@ -18,8 +19,17 @@ function MetricCard({ label, value, icon: Icon, color }) {
 }
 
 export default function CampaignMetrics() {
+  const { isCampaign } = useAuth();
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showEntryModal, setShowEntryModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    metric_date: new Date().toISOString().split('T')[0],
+    total_leads: '',
+    ad_spend: ''
+  });
 
   const fetchMetrics = () => {
     setLoading(true);
@@ -35,6 +45,38 @@ export default function CampaignMetrics() {
   const totalLeads = metrics.reduce((acc, m) => acc + (m.total_leads || 0), 0);
   const avgCPL = totalLeads > 0 ? (totalSpend / totalLeads).toFixed(2) : '0.00';
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.metric_date || !formData.total_leads || !formData.ad_spend) {
+      return toast.error('Please fill all fields');
+    }
+
+    setSubmitting(true);
+    try {
+      await api.post('/campaign/metrics', {
+        ...formData,
+        total_leads: parseInt(formData.total_leads),
+        ad_spend: parseFloat(formData.ad_spend)
+      });
+      toast.success('Campaign metrics updated');
+      setShowEntryModal(false);
+      fetchMetrics();
+      setFormData({
+        metric_date: new Date().toISOString().split('T')[0],
+        total_leads: '',
+        ad_spend: ''
+      });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save metrics');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const currentCpl = (formData.ad_spend && formData.total_leads && formData.total_leads > 0)
+    ? (parseFloat(formData.ad_spend) / parseInt(formData.total_leads)).toFixed(2)
+    : '0.00';
+
   return (
     <div className="campaign-metrics-page" style={{ maxWidth: 1200, margin: '0 auto' }}>
       <div className="page-header">
@@ -42,6 +84,15 @@ export default function CampaignMetrics() {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Campaign Performance</h2>
           <p style={{ color: 'var(--grey-500)', fontSize: '0.85rem' }}>Historical daily ad spend and lead counts from Meta platforms</p>
         </div>
+        {isCampaign && (
+          <button 
+            className="btn btn-primary" 
+            onClick={() => setShowEntryModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 12, padding: '10px 18px' }}
+          >
+            <Plus size={18} /> Entry New Campaign
+          </button>
+        )}
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: 24, gap: 16 }}>
@@ -64,11 +115,10 @@ export default function CampaignMetrics() {
             <div className="empty-state" style={{ padding: 60 }}>
               <div className="empty-state-icon" style={{ background: 'var(--grey-50)', color: 'var(--grey-300)' }}><AlertCircle size={32} /></div>
               <h3>No metrics recorded</h3>
-              <p>Daily ad spend data will appear here once entered.</p>
+              <p>Daily ad spend data will appear here once entered by the Campaign Manager.</p>
             </div>
           ) : (
             <>
-              {/* Desktop Table View */}
               <div className="desktop-table-view">
                 <table className="data-table">
                   <thead>
@@ -96,7 +146,6 @@ export default function CampaignMetrics() {
                 </table>
               </div>
 
-              {/* Mobile Card List View — STRICTLY FOR MOBILE */}
               <div className="mobile-only mobile-card-list" style={{ padding: 16 }}>
                 {metrics.map(m => (
                   <div key={m.id} className="mobile-card-item" style={{ marginBottom: 12 }}>
@@ -121,6 +170,75 @@ export default function CampaignMetrics() {
           )}
         </div>
       </div>
+
+      {showEntryModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div className="modal-content card" style={{ maxWidth: 450, width: '100%', borderRadius: 20, animation: 'slideUp 0.3s ease-out' }}>
+            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--grey-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontWeight: 800 }}>New Campaign Entry</h3>
+              <button className="icon-btn" onClick={() => setShowEntryModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSubmit} style={{ padding: 24 }}>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label" style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Campaign Date</label>
+                <input 
+                  type="date" 
+                  className="form-control" 
+                  value={formData.metric_date}
+                  onChange={e => setFormData({ ...formData, metric_date: e.target.value })}
+                  style={{ borderRadius: 10 }}
+                />
+              </div>
+              <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Leads Count</label>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    placeholder="Enter count"
+                    value={formData.total_leads}
+                    onChange={e => setFormData({ ...formData, total_leads: e.target.value })}
+                    style={{ borderRadius: 10 }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Ad Spend (₹)</label>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    placeholder="Enter amount"
+                    value={formData.ad_spend}
+                    onChange={e => setFormData({ ...formData, ad_spend: e.target.value })}
+                    style={{ borderRadius: 10 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--grey-50)', padding: 16, borderRadius: 12, marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--grey-600)' }}>Calculated Cost Per Lead:</span>
+                  <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--tata-blue)' }}>₹{currentCpl}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEntryModal(false)} style={{ flex: 1, borderRadius: 12 }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting} style={{ flex: 2, borderRadius: 12 }}>
+                  {submitting ? 'Saving...' : 'Save Entry'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
+

@@ -1,28 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Download, Filter, Calendar, TrendingUp } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 export default function Reports() {
+  const { dateFrom, setDateFrom, dateTo, setDateTo } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    to: new Date().toISOString().split('T')[0]
-  });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!dateFrom || !dateTo) return;
     setLoading(true);
     try {
       const res = await api.get('/reports/dealer-performance', {
-        params: { date_from: dateRange.from, date_to: dateRange.to }
+        params: { date_from: dateFrom, date_to: dateTo }
       });
       const cleanedData = (res.data.data || []).map(d => ({
         ...d,
-        dealer_name: d.dealer_name.replace(/\s*Dealer\s*Partner\s*/gi, '')
+        dealer_name: (d.dealer_name || '').replace(/\s*Dealer\s*Partner\s*/gi, '')
       }));
       setData(cleanedData);
     } catch (err) {
@@ -30,9 +29,9 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateFrom, dateTo]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleExportCSV = () => {
     if (!data || data.length === 0) { toast.error('No data to export'); return; }
@@ -64,9 +63,9 @@ export default function Reports() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1 }}>
              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--grey-50)', padding: '6px 12px', borderRadius: 10, border: '1px solid var(--grey-100)', flex: '1 1 280px', flexWrap: 'wrap' }}>
                 <Calendar size={18} style={{ color: 'var(--tata-blue)' }} />
-                <input type="date" className="date-input-clean" style={{ border: 'none', background: 'transparent', height: 32, fontSize: '0.82rem', fontWeight: 600, flex: 1, minWidth: 110 }} value={dateRange.from} onChange={e => setDateRange(r => ({ ...r, from: e.target.value }))} />
+                <input type="date" className="date-input-clean" style={{ border: 'none', background: 'transparent', height: 32, fontSize: '0.82rem', fontWeight: 600, flex: 1, minWidth: 110 }} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
                 <span style={{ color: 'var(--grey-300)', fontWeight: 700 }}>→</span>
-                <input type="date" className="date-input-clean" style={{ border: 'none', background: 'transparent', height: 32, fontSize: '0.82rem', fontWeight: 600, flex: 1, minWidth: 110 }} value={dateRange.to} onChange={e => setDateRange(r => ({ ...r, to: e.target.value }))} />
+                <input type="date" className="date-input-clean" style={{ border: 'none', background: 'transparent', height: 32, fontSize: '0.82rem', fontWeight: 600, flex: 1, minWidth: 110 }} value={dateTo} onChange={e => setDateTo(e.target.value)} />
              </div>
              <button className="btn btn-primary" onClick={fetchData} style={{ borderRadius: 10, padding: '0 24px', height: 44 }}><Filter size={16} /> Apply</button>
           </div>
@@ -79,10 +78,10 @@ export default function Reports() {
       ) : (
         <div className="dashboard-grid">
           <div className="card col-12">
-            <div className="card-header"><div className="card-title"><TrendingUp size={16} /> Dealer Interested Percentage (%)</div></div>
+            <div className="card-header"><div className="card-title"><TrendingUp size={16} /> Dealer Performance Analytics (%)</div></div>
             <div className="card-body chart-card-body" style={{ padding: '24px 10px' }}>
-              <ResponsiveContainer width="100%" height={380}>
-                <BarChart data={data || []} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={data || []} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--grey-50)" />
                   <XAxis dataKey="dealer_name" tick={{ fontSize: 10, fontWeight: 700, fill: 'var(--grey-500)' }} interval={0} angle={-30} textAnchor="end" dy={15} />
                   <YAxis tick={{ fontSize: 11, fill: 'var(--grey-400)' }} unit="%" />
@@ -97,3 +96,4 @@ export default function Reports() {
     </div>
   );
 }
+

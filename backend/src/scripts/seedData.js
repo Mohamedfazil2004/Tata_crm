@@ -102,13 +102,15 @@ async function seedData() {
     console.log('🗺️  Inserting district mappings...');
     for (const mapping of DISTRICT_MAPPING) {
       const normalized = mapping.district.toLowerCase().trim().replace(/\s+/g, '_');
+      const dealer = DEALERS.find(d => d.id === mapping.dealer_id);
       await db.query(
-        `INSERT INTO district_dealer_mapping (district, district_normalized, dealer_id) 
-         VALUES (?, ?, ?) 
-         ON DUPLICATE KEY UPDATE dealer_id=VALUES(dealer_id)`,
-        [mapping.district, normalized, mapping.dealer_id]
+        `INSERT INTO district_dealer_mapping (dealer_id, dealer_name, dealer_district, district_normalized) 
+         VALUES (?, ?, ?, ?) 
+         ON DUPLICATE KEY UPDATE dealer_id=VALUES(dealer_id), dealer_name=VALUES(dealer_name), dealer_district=VALUES(dealer_district)`,
+        [mapping.dealer_id, dealer ? dealer.dealer_name : 'Unknown', mapping.district, normalized]
       );
     }
+
     console.log(`✅ ${DISTRICT_MAPPING.length} district mappings inserted`);
 
     // Create admin user

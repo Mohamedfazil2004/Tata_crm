@@ -33,10 +33,10 @@ router.get('/admin', authenticate, authorize('admin', 'campaign_team'), async (r
 
     // Remark distribution (Telecaller Remarks)
     const [remarkDist] = await db.query(`
-      SELECT voice_of_customer as status, COUNT(*) as count 
+      SELECT telecaller_remark as status, COUNT(*) as count 
       FROM leads 
-      WHERE ${baseWhere} AND voice_of_customer IS NOT NULL AND voice_of_customer != ''
-      GROUP BY voice_of_customer
+      WHERE ${baseWhere} AND telecaller_remark IS NOT NULL AND telecaller_remark != ''
+      GROUP BY telecaller_remark
     `, params);
 
     // Dealer performance
@@ -144,11 +144,13 @@ router.get('/dealer', authenticate, authorize('dealer', 'dse'), async (req, res)
     const { date_from, date_to } = req.query;
     let baseWhere = '1=1';
     let params = [];
+    const isDSE = req.user.role === 'dse';
+    const statusCol = isDSE ? 'dse_status' : 'status';
 
     if (req.user.role === 'dealer') {
       baseWhere = 'dealer_id = ?';
       params.push(req.user.dealer_id);
-    } else if (req.user.role === 'dse') {
+    } else if (isDSE) {
       baseWhere = 'assigned_to_dse = ?';
       params.push(req.user.full_name);
     }
@@ -161,6 +163,10 @@ router.get('/dealer', authenticate, authorize('dealer', 'dse'), async (req, res)
       dateParams.push(date_from, date_to);
     }
 
+    // DSE follow-up rule: "Only leads with a Follow-up Date entered by the DSE should appear"
+    let followupCondition = 'follow_up_date BETWEEN ? AND ?';
+    if (isDSE) followupCondition += ' AND last_updated_by = "DSE"';
+
     const summaryParams = [
       date_from || '2000-01-01', date_to || '2099-12-31',
       ...dateParams
@@ -168,43 +174,44 @@ router.get('/dealer', authenticate, authorize('dealer', 'dse'), async (req, res)
     const [[summary]] = await db.query(`
       SELECT 
         COUNT(*) as total_leads,
-        COUNT(CASE WHEN status='In Progress' THEN 1 END) as pending_leads,
-        COUNT(CASE WHEN status='Completed' THEN 1 END) as completed,
-        COUNT(CASE WHEN status != 'Completed' AND follow_up_date BETWEEN ? AND ? THEN 1 END) as total_followups
+        COUNT(CASE WHEN ${statusCol}='In Progress' THEN 1 END) as pending_leads,
+        COUNT(CASE WHEN ${statusCol}='Completed' THEN 1 END) as completed,
+        COUNT(CASE WHEN ${followupCondition} THEN 1 END) as total_followups
       FROM (SELECT * FROM leads WHERE ${dateWhere}) as sub`, summaryParams);
 
     // Status distribution
     const [statusDist] = await db.query(`
-      SELECT status, COUNT(*) as count FROM leads WHERE ${dateWhere} GROUP BY status
+      SELECT ${statusCol} as status, COUNT(*) as count FROM leads WHERE ${dateWhere} GROUP BY ${statusCol}
     `, dateParams);
 
     // Remark distribution (Telecaller Remarks)
     const [remarkDist] = await db.query(`
-      SELECT voice_of_customer as name, COUNT(*) as value 
+      SELECT telecaller_remark as name, COUNT(*) as value 
       FROM leads 
-      WHERE ${dateWhere} AND voice_of_customer IS NOT NULL AND voice_of_customer != ''
-      GROUP BY voice_of_customer
+      WHERE ${dateWhere} AND telecaller_remark IS NOT NULL AND telecaller_remark != ''
+      GROUP BY telecaller_remark
     `, dateParams);
 
     // Deal Stage distribution
     const [stageDist] = await db.query(`
       SELECT deal_stage as name, COUNT(*) as value 
       FROM leads 
-      WHERE ${dateWhere} AND deal_stage IS NOT NULL AND deal_stage != ''
+      WHERE ${dateWhere} AND deal_stage IS NOT NULL AND deal_stage != '' AND deal_stage != 'New'
       GROUP BY deal_stage
     `, dateParams);
 
     // If dealer, get distribution per DSE
     let dseStageDist = [];
-    if (req.user.role === 'dealer') {
-      const [dseDist] = await db.query(`
+    if (req.user.role === 'dealer') {      const [dseDist] = await db.query(`
         SELECT assigned_to_dse as dse_name, deal_stage as stage, COUNT(*) as count
         FROM leads
-        WHERE ${dateWhere} AND assigned_to_dse IS NOT NULL AND assigned_to_dse != '' AND deal_stage IS NOT NULL AND deal_stage != ''
+        WHERE ${dateWhere} 
+          AND assigned_to_dse IS NOT NULL AND assigned_to_dse != '' 
+          AND deal_stage IS NOT NULL AND deal_stage != '' AND deal_stage != 'New'
         GROUP BY assigned_to_dse, deal_stage
       `, dateParams);
       
-      // Transform to grouped format: { Ramesh: [{ name: 'Visited', value: 5 }, ...], ... }
+      // Transform to grouped format
       const grouped = dseDist.reduce((acc, curr) => {
         if (!acc[curr.dse_name]) acc[curr.dse_name] = [];
         acc[curr.dse_name].push({ name: curr.stage, value: curr.count });

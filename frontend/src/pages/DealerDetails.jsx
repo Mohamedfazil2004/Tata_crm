@@ -3,10 +3,99 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Search, Filter, Calendar,
   Phone, User, MessageSquare, Clock,
-  AlertCircle, TrendingUp, MoreVertical, X, MapPin, Truck
+  AlertCircle, TrendingUp, MoreVertical, X, MapPin, Truck, CheckCircle, Image, Activity
 } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+
+// REUSABLE COMPONENTS
+function DetailRow({ label, value, icon: Icon }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--grey-50)', borderRadius: 10, border: '1px solid var(--grey-100)', marginBottom: 8 }}>
+      <div style={{ fontSize: '0.72rem', color: 'var(--grey-400)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--grey-800)' }}>{value}</div>
+    </div>
+  );
+}
+
+function DSEViewModal({ lead, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 480 }}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tata-blue)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp size={20} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0 }}>DSE Activity Log</h3>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--grey-400)' }}>Updates by {lead.assigned_to_dse}</p>
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body" style={{ background: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--grey-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--tata-blue)' }}>
+                {lead.full_name?.charAt(0)}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--grey-900)' }}>{lead.full_name}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--grey-400)', fontWeight: 600 }}>ID: #{lead.id}</span>
+              </div>
+            </div>
+            {lead.interest_level && (
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--grey-500)', fontWeight: 800, display: 'block', marginBottom: 5, letterSpacing: 0.5 }}>INTEREST LEVEL</span>
+                <span className={`badge badge-${lead.interest_level === 'High' ? 'red' : lead.interest_level === 'Medium' ? 'yellow' : 'blue'}`} style={{ fontSize: '0.8rem', padding: '5px 12px' }}>
+                  {lead.interest_level}
+                </span>
+              </div>
+            )}
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <DetailRow 
+              label="Field Work Status" 
+              value={(lead.status === 'Completed' && lead.last_updated_by === 'DSE') ? '✅ Completed' : '⏳ In Progress'} 
+            />
+            <DetailRow label="Visit Status" value={lead.visit_status} />
+            <DetailRow label="Expected Timeline" value={lead.expected_purchase_timeline} />
+            {lead.budget && <DetailRow label="Budget Estimate" value={lead.budget} />}
+            {lead.deal_stage === 'Lost' && <DetailRow label="Lost Reason" value={lead.lost_reason} />}
+            {lead.dse_follow_up_date && (
+              <DetailRow 
+                label="Next Follow-up" 
+                value={new Date(lead.dse_follow_up_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} 
+              />
+            )}
+          </div>
+          <div style={{ padding: 14, background: 'rgba(0,58,143,0.03)', borderRadius: 12, border: '1px solid rgba(0,58,143,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <MessageSquare size={15} color="var(--tata-blue)" />
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--tata-blue)', letterSpacing: 0.5 }}>CUSTOMER RESPONSE</span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--grey-800)', lineHeight: '1.6', fontWeight: 500 }}>
+              {lead.customer_response || <span style={{ color: 'var(--grey-400)', fontStyle: 'italic' }}>No response recorded.</span>}
+            </p>
+          </div>
+          {lead.jio_tag_photo && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Image size={15} color="var(--tata-blue)" />
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--tata-blue)', letterSpacing: 0.5 }}>FIELD VISIT PHOTO</span>
+              </div>
+              <a href={lead.jio_tag_photo} target="_blank" rel="noreferrer">
+                <img src={lead.jio_tag_photo} alt="Jio Tag" style={{ width: '100%', borderRadius: 12, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--grey-100)' }} onError={(e) => e.target.style.display='none'} />
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DealerDetails() {
   const { id } = useParams();
@@ -17,6 +106,7 @@ export default function DealerDetails() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [viewLead, setViewLead] = useState(null);
 
   const fetchDealerData = useCallback(async () => {
     setLoading(true);
@@ -122,9 +212,10 @@ export default function DealerDetails() {
                 <th>Customer Name</th>
                 <th>Contact info</th>
                 <th>Current Status</th>
-                <th>Follow-up</th>
+                <th>TLC Follow up</th>
                 <th>Last Update</th>
-                <th style={{ paddingRight: 20 }}>DSE Remarks</th>
+                <th>Telecaller Remark</th>
+                <th style={{ paddingRight: 20 }}>DSE Remark</th>
               </tr>
             </thead>
             <tbody>
@@ -154,10 +245,15 @@ export default function DealerDetails() {
                     ) : <span style={{ color: 'var(--grey-300)' }}>—</span>}
                   </td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--grey-500)' }}>{formatDate(l.updated_at)}</td>
-                  <td style={{ paddingRight: 20, maxWidth: 220 }}>
-                     <div style={{ fontSize: '0.8rem', color: 'var(--grey-700)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.consolidated_remark || l.voice_of_customer}>
-                        {l.consolidated_remark || l.voice_of_customer || '—'}
+                  <td style={{ maxWidth: 200 }}>
+                     <div style={{ fontSize: '0.8rem', color: 'var(--grey-700)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.telecaller_remark}>
+                        {l.telecaller_remark || '—'}
                      </div>
+                  </td>
+                  <td style={{ paddingRight: 20 }}>
+                      {l.assigned_to_dse && l.assigned_to_dse !== 'Unassigned' ? (
+                        <button className="btn btn-secondary btn-sm" style={{ padding: '4px 10px', fontSize: '0.7rem' }} onClick={() => setViewLead(l)}>View Log</button>
+                      ) : <span style={{ color: 'var(--grey-300)', fontSize: '0.7rem italic' }}>No DSE</span>}
                   </td>
                 </tr>
               ))}
@@ -165,6 +261,8 @@ export default function DealerDetails() {
           </table>
         )}
       </div>
+
+      {viewLead && <DSEViewModal lead={viewLead} onClose={() => setViewLead(null)} />}
 
       {/* Mobile Card View */}
       <div className="dealers-mobile-cards">
@@ -206,11 +304,11 @@ export default function DealerDetails() {
               </div>
             )}
 
-            {(l.consolidated_remark || l.voice_of_customer) && (
+            {l.telecaller_remark && (
               <div style={{ background: 'rgba(0,58,143,0.03)', padding: 10, borderRadius: 10, border: '1px solid rgba(0,58,143,0.08)' }}>
-                <div style={{ fontSize: '0.65rem', color: 'var(--tata-blue)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Latest Remark</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--tata-blue)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Telecaller Remark</div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--grey-700)', fontWeight: 500, lineHeight: 1.4 }}>
-                  {l.consolidated_remark || l.voice_of_customer}
+                  {l.telecaller_remark}
                 </div>
               </div>
             )}

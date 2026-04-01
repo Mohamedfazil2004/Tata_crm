@@ -32,6 +32,7 @@ app.use('/api/upload', require('./routes/upload'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/campaign', require('./routes/campaign'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {

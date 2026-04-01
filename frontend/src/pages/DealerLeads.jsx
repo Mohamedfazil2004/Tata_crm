@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Edit2, X, Phone, Calendar, Clock, CheckCircle, Eye, User, MapPin, Truck, Filter, ChevronDown, MessageSquare, Image, Upload } from 'lucide-react';
+import { Search, Edit2, X, Phone, Calendar, Clock, CheckCircle, Eye, User, MapPin, Truck, Filter, ChevronDown, MessageSquare, Image, Upload, TrendingUp } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -22,9 +22,9 @@ const INTERESTED_REMARKS = [
   'Intrested / purchased within 90 days'
 ];
 const DSE_OPTIONS = ['Ramesh', 'Sam', 'Srinivasan'];
-const VISIT_OPTIONS = ['Not Visited', 'Visited', 'Test Drive Done'];
+const VISIT_OPTIONS = ['Visited', 'Test Drive Done'];
 const INTEREST_OPTIONS = ['High', 'Medium', 'Low'];
-const STAGE_OPTIONS = ['New', 'Visited', 'Negotiation', 'Quotation Given', 'Booking Done', 'Lost'];
+const STAGE_OPTIONS = ['Visited', 'Negotiation', 'Quotation Given', 'Booking Done', 'Lost'];
 const TIMELINE_OPTIONS = ['0–30 days', '30–60 days', '60–90 days'];
 
 const modelMap = {
@@ -108,7 +108,7 @@ function InterestedModal({ lead, onClose, onSave }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put(`/leads/${lead.id}`, { voice_of_customer: lead.voice_of_customer, ...form });
+      await api.put(`/leads/${lead.id}`, { telecaller_remark: lead.telecaller_remark, ...form });
       toast.success('Interest details saved');
       onSave(); onClose();
     } catch { toast.error('Save failed'); } finally { setSaving(false); }
@@ -146,21 +146,29 @@ function InterestedModal({ lead, onClose, onSave }) {
 // FULL EDIT MODAL FOR DSE ONLY
 function DSEEditModal({ lead, onClose, onSave }) {
   const [form, setForm] = useState({
-    visit_status: lead.visit_status || 'Not Visited',
+    visit_status: lead.visit_status || '',
     interest_level: lead.interest_level || '',
-    deal_stage: lead.deal_stage || '',
+    deal_stage: lead.deal_stage === 'New' ? '' : (lead.deal_stage || ''),
     expected_purchase_timeline: lead.expected_purchase_timeline || '',
     budget: lead.budget || '',
-    dse_notes: lead.dse_notes || '',
+    customer_response: lead.customer_response || '',
     lost_reason: lead.lost_reason || '',
-    follow_up_date: lead.follow_up_date ? new Date(lead.follow_up_date).toLocaleDateString('en-CA') : '',
+    dse_follow_up_date: lead.dse_follow_up_date ? new Date(lead.dse_follow_up_date).toLocaleDateString('en-CA') : '',
     status: 'Completed'
   });
   const [photo, setPhoto] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (form.deal_stage === 'Lost' && !form.lost_reason) return toast.error('Reason is required for Lost deals');
+    // Validation: Identify which fields are missing (except budget and follow-up date)
+    if (!form.visit_status) return toast.error('Visit Status: select this option');
+    if (!form.interest_level) return toast.error('Interest Level: select this option');
+    if (!form.deal_stage) return toast.error('Deal Stage: select this option');
+    if (!form.expected_purchase_timeline) return toast.error('Timeline: select this option');
+    if (!form.customer_response) return toast.error('Customer Response: select this option');
+    
+    if (form.deal_stage === 'Lost' && !form.lost_reason) return toast.error('Reason: select this option for Lost deals');
+    
     setSaving(true);
     try {
       const formData = new FormData();
@@ -186,7 +194,7 @@ function DSEEditModal({ lead, onClose, onSave }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             <div className="form-group" style={{ margin: 0 }}><label className="form-label">Visit Status</label>
               <select className="form-select" value={form.visit_status} onChange={e => setForm(f => ({ ...f, visit_status: e.target.value }))}>
-                {VISIT_OPTIONS.map(v => <option key={v}>{v}</option>)}
+                <option value="">— Select —</option>{VISIT_OPTIONS.map(v => <option key={v}>{v}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ margin: 0 }}><label className="form-label">Interest Level</label>
@@ -204,9 +212,12 @@ function DSEEditModal({ lead, onClose, onSave }) {
                 <option value="">— Select —</option>{TIMELINE_OPTIONS.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
+            <div className="form-group" style={{ margin: 0 }}><label className="form-label">Budget Estimate</label>
+              <input type="text" className="form-control" placeholder="e.g. 8-10 Lakhs" value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))} />
+            </div>
           </div>
-          <div className="form-group" style={{ marginTop: 14 }}><label className="form-label">Field Follow-up Date</label>
-            <input type="date" className="form-control" value={form.follow_up_date} onChange={e => setForm(f => ({ ...f, follow_up_date: e.target.value }))} />
+          <div className="form-group" style={{ marginTop: 14 }}><label className="form-label">Next Field Follow-up Date</label>
+            <input type="date" className="form-control" value={form.dse_follow_up_date} onChange={e => setForm(f => ({ ...f, dse_follow_up_date: e.target.value }))} />
           </div>
           {form.deal_stage === 'Lost' && (
             <div className="form-group"><label className="form-label">Reason</label>
@@ -215,10 +226,10 @@ function DSEEditModal({ lead, onClose, onSave }) {
           )}
           <div className="form-group">
             <label className="form-label">Customer Response</label>
-            <select className="form-select" value={form.dse_notes} onChange={e => setForm(f => ({ ...f, dse_notes: e.target.value }))}>
+            <select className="form-select" value={form.customer_response} onChange={e => setForm(f => ({ ...f, customer_response: e.target.value }))}>
               <option value="">— Select Response —</option>
-              <option value="based on Telecaller remark">based on Telecaller remark</option>
-              <option value="not intrested">not intrested</option>
+              <option value="based on Telecaller remark">Based on Telecaller Remark</option>
+              <option value="not intrested">Not Interested</option>
             </select>
           </div>
           <div className="form-group">
@@ -250,34 +261,42 @@ function DSEEditModal({ lead, onClose, onSave }) {
 }
 
 // VIEW DSE MODAL
-function DSEViewModal({ lead, onClose }) {
-  const stageColor = { 'Lost': '#d32f2f', 'Booking Done': '#388e3c', 'Negotiation': '#f57c00', 'Visited': '#1565c0', 'Quotation Given': '#7b1fa2', 'New': 'var(--grey-600)' };
-  const dStage = lead.deal_stage || 'New';
-
-  const DetailRow = ({ label, value }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--grey-100)', flexWrap: 'wrap', gap: 4 }}>
-      <span style={{ color: 'var(--grey-500)', fontSize: '0.82rem', fontWeight: 600 }}>{label}</span>
-      <span style={{ color: 'var(--grey-900)', fontSize: '0.82rem', fontWeight: 700, textAlign: 'right' }}>{value || '—'}</span>
+function DetailRow({ label, value }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--grey-50)', borderRadius: 10, border: '1px solid var(--grey-100)', marginBottom: 8 }}>
+      <div style={{ fontSize: '0.72rem', color: 'var(--grey-400)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--grey-800)' }}>{value}</div>
     </div>
   );
+}
 
+function DSEViewModal({ lead, onClose }) {
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 480, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div className="modal-header" style={{ background: 'linear-gradient(135deg, var(--tata-blue), #002868)', color: '#fff', borderBottom: 'none' }}>
-          <div>
-            <h3 style={{ color: '#fff', margin: 0, fontWeight: 800 }}>DSE Remark</h3>
-            <div style={{ fontSize: '0.78rem', opacity: 0.9, marginTop: 4 }}>Last updated by {lead.assigned_to_dse || 'DSE'}</div>
-          </div>
-          <button className="modal-close" onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}><X size={18} /></button>
-        </div>
-        <div className="modal-body" style={{ overflowY: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, padding: '14px 16px', background: 'var(--grey-50)', borderRadius: 12, border: '1px solid var(--grey-100)', flexWrap: 'wrap', gap: 10 }}>
+      <div className="modal" style={{ maxWidth: 480 }}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tata-blue)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp size={20} />
+            </div>
             <div>
-              <span style={{ fontSize: '0.65rem', color: 'var(--grey-500)', fontWeight: 800, display: 'block', marginBottom: 5, letterSpacing: 0.5 }}>CURRENT DEAL STAGE</span>
-              <span style={{ padding: '5px 12px', borderRadius: 100, fontSize: '0.8rem', fontWeight: 800, background: '#fff', color: stageColor[dStage] || 'var(--grey-700)', border: `1px solid ${stageColor[dStage] || '#ccc'}40` }}>
-                {dStage}
-              </span>
+              <h3 style={{ margin: 0 }}>DSE Activity Log</h3>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--grey-400)' }}>Updates by {lead.assigned_to_dse || 'DSE'}</p>
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body" style={{ background: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--grey-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--tata-blue)' }}>
+                {lead.full_name?.charAt(0)}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--grey-900)' }}>{lead.full_name}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--grey-400)', fontWeight: 600 }}>ID: #{lead.id}</span>
+              </div>
             </div>
             {lead.interest_level && (
               <div style={{ textAlign: 'right' }}>
@@ -289,11 +308,15 @@ function DSEViewModal({ lead, onClose }) {
             )}
           </div>
           <div style={{ marginBottom: 20 }}>
+            <DetailRow 
+              label="Field Work Status" 
+              value={(lead.dse_status === 'Completed') ? '✅ Completed' : '⏳ In Progress'} 
+            />
             <DetailRow label="Visit Status" value={lead.visit_status} />
-            <DetailRow label="Expected Timeline" value={lead.expected_purchase_timeline} />
+            <DetailRow label="Expected Purchase Timeline" value={lead.expected_purchase_timeline} />
             {lead.budget && <DetailRow label="Budget Estimate" value={lead.budget} />}
             {lead.deal_stage === 'Lost' && <DetailRow label="Lost Reason" value={lead.lost_reason} />}
-            {lead.follow_up_date && <DetailRow label="Next Field Follow-up" value={new Date(lead.follow_up_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} />}
+            {lead.dse_follow_up_date && <DetailRow label="Next Visit" value={new Date(lead.dse_follow_up_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} />}
           </div>
           <div style={{ padding: 14, background: 'rgba(0,58,143,0.03)', borderRadius: 12, border: '1px solid rgba(0,58,143,0.1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -301,18 +324,18 @@ function DSEViewModal({ lead, onClose }) {
               <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--tata-blue)', letterSpacing: 0.5 }}>CUSTOMER RESPONSE</span>
             </div>
             <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--grey-800)', lineHeight: '1.6', fontWeight: 500 }}>
-              {lead.dse_notes || <span style={{ color: 'var(--grey-400)', fontStyle: 'italic' }}>No response recorded.</span>}
+              {lead.customer_response || <span style={{ color: 'var(--grey-400)', fontStyle: 'italic' }}>No response recorded.</span>}
             </p>
           </div>
           {lead.jio_tag_photo && (
             <div style={{ marginTop: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <Image size={15} color="var(--tata-blue)" />
-                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--tata-blue)', letterSpacing: 0.5 }}>JIO TAG PHOTO</span>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--tata-blue)', letterSpacing: 0.5 }}>FIELD VISIT PHOTO</span>
               </div>
-              <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--grey-200)' }}>
-                <img src={lead.jio_tag_photo} alt="Jio Tag" style={{ width: '100%', height: 'auto', display: 'block' }} />
-              </div>
+              <a href={lead.jio_tag_photo} target="_blank" rel="noreferrer">
+                <img src={lead.jio_tag_photo} alt="Jio Tag" style={{ width: '100%', borderRadius: 12, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--grey-100)' }} onError={(e) => e.target.style.display='none'} />
+              </a>
             </div>
           )}
         </div>
@@ -328,8 +351,9 @@ function MobileLeadCard({ lead, role, type, onRefresh, showFieldInsight, showFol
   const [activeLead, setActiveLead] = useState(null);
   const [viewLead, setViewLead] = useState(null);
 
-  const statusColor = lead.status === 'Completed' ? 'var(--green-700)' : 'var(--yellow-700)';
-  const statusBg = lead.status === 'Completed' ? 'var(--green-50)' : 'var(--yellow-50)';
+  const currentStatus = isDSE ? (lead.dse_status || 'In Progress') : lead.status;
+  const statusColor = currentStatus === 'Completed' ? 'var(--green-700)' : 'var(--yellow-700)';
+  const statusBg = currentStatus === 'Completed' ? 'var(--green-50)' : 'var(--yellow-50)';
 
   return (
     <div style={{
@@ -343,9 +367,17 @@ function MobileLeadCard({ lead, role, type, onRefresh, showFieldInsight, showFol
           <div style={{ fontSize: '0.75rem', color: 'var(--grey-500)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
             <MapPin size={10} /> {lead.location}
           </div>
+          {isDSE && lead.customer_appointment_date && (
+            <div style={{ marginTop: 4 }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--orange-500)', fontWeight: 800, background: 'var(--yellow-50)', padding: '2px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Calendar size={10} />
+                Appt: {new Date(lead.customer_appointment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+              </span>
+            </div>
+          )}
         </div>
         <span style={{ padding: '4px 10px', borderRadius: 100, fontSize: '0.72rem', fontWeight: 700, background: statusBg, color: statusColor, flexShrink: 0 }}>
-          {lead.status}
+          {currentStatus}
         </span>
       </div>
 
@@ -384,14 +416,14 @@ function MobileLeadCard({ lead, role, type, onRefresh, showFieldInsight, showFol
           <select
             className="form-select"
             style={{ fontSize: '0.8rem', height: 40, background: '#F3F4F6', minHeight: 'auto' }}
-            value={lead.voice_of_customer || ''}
+            value={lead.telecaller_remark || ''}
             onChange={async (e) => {
               const val = e.target.value;
               if (INTERESTED_REMARKS.includes(val)) {
-                setActiveLead({ ...lead, voice_of_customer: val });
+                setActiveLead({ ...lead, telecaller_remark: val });
               } else {
                 try {
-                  await api.put(`/leads/${lead.id}`, { voice_of_customer: val });
+                  await api.put(`/leads/${lead.id}`, { telecaller_remark: val });
                   toast.success('Remark updated');
                   onRefresh();
                 } catch (err) {
@@ -410,21 +442,32 @@ function MobileLeadCard({ lead, role, type, onRefresh, showFieldInsight, showFol
       {showFollowupDate && !isDSE && (
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--grey-400)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Follow-up Date</div>
-          <input
-            type="date"
-            className="form-control"
-            style={{ height: 40, fontSize: '0.82rem', minHeight: 'auto' }}
-            value={lead.follow_up_date ? new Date(lead.follow_up_date).toLocaleDateString('en-CA') : ''}
-            onChange={async (e) => {
-              try {
-                await api.put(`/leads/${lead.id}`, { follow_up_date: e.target.value });
-                toast.success('Scheduled');
-                onRefresh();
-              } catch (err) {
-                toast.error(err.response?.data?.message || 'Update failed');
-              }
-            }}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="date"
+              id={`date-mob-${lead.id}`}
+              className="form-control"
+              style={{ height: 42, fontSize: '0.82rem', minHeight: 'auto', flex: 1 }}
+              defaultValue={lead.follow_up_date ? new Date(lead.follow_up_date).toLocaleDateString('en-CA') : ''}
+            />
+            <button
+              className="btn btn-primary"
+              style={{ width: 42, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={async () => {
+                const val = document.getElementById(`date-mob-${lead.id}`).value;
+                if (!val) return toast.error('Selection required');
+                try {
+                  await api.put(`/leads/${lead.id}`, { follow_up_date: val });
+                  toast.success('Scheduled');
+                  onRefresh();
+                } catch (err) {
+                  toast.error(err.response?.data?.message || 'Update failed');
+                }
+              }}
+            >
+              <CheckCircle size={18} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -438,7 +481,7 @@ function MobileLeadCard({ lead, role, type, onRefresh, showFieldInsight, showFol
             value={lead.status}
             onChange={async (e) => {
               const newStatus = e.target.value;
-              if (newStatus === 'Completed' && !lead.voice_of_customer) {
+              if (newStatus === 'Completed' && !lead.telecaller_remark) {
                 toast.error('Please select a Telecaller Remark before marking as Completed');
                 return;
               }
@@ -487,8 +530,8 @@ function MobileLeadCard({ lead, role, type, onRefresh, showFieldInsight, showFol
 function LeadTable({ leads, onRefresh, role, type, filters, onFilterChange, filterOptions }) {
   const isDSE = role === 'dse';
   const isCompleted = type === 'completed';
-  const showFieldInsight = isCompleted || isDSE;
-  const showFollowupDate = !isCompleted && !isDSE;
+  const showFieldInsight = true; // Enabled for all sections as per Dealer request
+  const showFollowupDate = type === 'active' || type === 'scheduled';
 
   const [activeLead, setActiveLead] = useState(null);
   const [viewLead, setViewLead] = useState(null);
@@ -504,19 +547,18 @@ function LeadTable({ leads, onRefresh, role, type, filters, onFilterChange, filt
         <table className="data-table">
           <thead>
             <tr>
-              <th style={{ paddingLeft: 20, width: 110 }}>{isDSE ? 'Assigned Date' : 'Lead Date'}</th>
-              <th style={{ width: 220 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <MultiSelectFilter label="Name" options={nameOptions} selected={filters.name || []} onChange={(v) => onFilterChange('name', v)} />
-                  <MultiSelectFilter label="Location" options={locationOptions} selected={filters.location || []} onChange={(v) => onFilterChange('location', v)} />
-                </div>
+              <th style={{ width: 180, paddingLeft: 20 }}>
+                <MultiSelectFilter label={isDSE ? "Name & Appt" : "Name"} options={nameOptions} selected={filters.name || []} onChange={(v) => onFilterChange('name', v)} />
+              </th>
+              <th style={{ width: 180 }}>
+                <MultiSelectFilter label="Location & Phone" options={locationOptions} selected={filters.location || []} onChange={(v) => onFilterChange('location', v)} />
               </th>
               <th><MultiSelectFilter label="Vehicle" options={modelOptions} selected={filters.model || []} onChange={(v) => onFilterChange('model', v)} /></th>
               <th><MultiSelectFilter label="Telecaller Remark" options={REMARK_OPTIONS} selected={filters.remark || []} onChange={(v) => onFilterChange('remark', v)} /></th>
-              {showFollowupDate && <th style={{ width: 145 }}>Followup Date</th>}
+              {!isDSE && showFollowupDate && <th style={{ width: 145 }}>TLC Follow up</th>}
               {!isDSE && <th><MultiSelectFilter label="DSE" options={dseOptions.length ? dseOptions : DSE_OPTIONS} selected={filters.allocation || []} onChange={(v) => onFilterChange('allocation', v)} /></th>}
-              {showFieldInsight && <th style={{ textAlign: 'center' }}>DSE Remark</th>}
-              <th><MultiSelectFilter label="Progress" options={statusOptions} selected={filters.progress || []} onChange={(v) => onFilterChange('progress', v)} /></th>
+              {showFieldInsight && <th style={{ textAlign: 'center', fontSize: '0.72rem', fontWeight: 800, color: 'var(--grey-500)', textTransform: 'uppercase', letterSpacing: 0.5 }}>DSE REMARK</th>}
+              <th style={{ minWidth: 140 }}><MultiSelectFilter label="Progress" options={statusOptions} selected={filters.progress || []} onChange={(v) => onFilterChange('progress', v)} /></th>
               {isDSE && <th style={{ width: 70, paddingRight: 20 }}>Edit</th>}
             </tr>
           </thead>
@@ -524,71 +566,175 @@ function LeadTable({ leads, onRefresh, role, type, filters, onFilterChange, filt
             {(leads || []).map((l) => (
               <tr key={l.id}>
                 <td style={{ paddingLeft: 20 }}>
-                  <span style={{ fontWeight: 700, color: 'var(--grey-900)', fontSize: '0.85rem' }}>
-                    {l.lead_date ? new Date(l.lead_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--tata-blue)', fontSize: '0.9rem' }}>{l.full_name}</span>
+                    {isDSE && l.customer_appointment_date && (
+                      <div style={{ marginTop: 6 }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--orange-500)', fontWeight: 800, background: 'var(--yellow-50)', padding: '2px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid rgba(247, 144, 9, 0.1)' }}>
+                          <Calendar size={10} />
+                          Appt: {new Date(l.customer_appointment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 700, color: 'var(--tata-blue)', fontSize: '0.9rem' }}>{l.full_name}</span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--grey-500)' }}><MapPin size={10} style={{ marginRight: 3 }} /> {l.location}</span>
                     <a href={`tel:${l.phone_number}`} style={{ color: 'var(--green-500)', fontWeight: 600, fontSize: '0.78rem', marginTop: 2 }}><Phone size={10} style={{ marginRight: 3 }} />{l.phone_number}</a>
                   </div>
                 </td>
                 <td>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', background: 'var(--tata-blue-50)', color: 'var(--tata-blue)', borderRadius: 7, fontSize: '0.75rem', fontWeight: 600 }}>
-                    <Truck size={11} /> {formatModel(l.model)}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--tata-blue-50)', color: 'var(--tata-blue)', borderRadius: 7, fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <Truck size={12} /> {formatModel(l.model)}
                   </div>
                 </td>
                 <td>
                   {!isDSE ? (
-                    <select className="form-select" style={{ minWidth: 150, height: 36, background: '#F3F4F6', fontSize: '0.78rem', minHeight: 'auto' }} value={l.voice_of_customer || ''} onChange={async (e) => {
+                    <select className="form-select" style={{ minWidth: 150, height: 36, background: '#F3F4F6', fontSize: '0.78rem', minHeight: 'auto' }} value={l.telecaller_remark || ''} onChange={async (e) => {
                       const val = e.target.value;
-                      if (INTERESTED_REMARKS.includes(val)) setActiveLead({ ...l, voice_of_customer: val });
+                      if (INTERESTED_REMARKS.includes(val)) setActiveLead({ ...l, telecaller_remark: val });
                       else {
-                        try { await api.put(`/leads/${l.id}`, { voice_of_customer: val }); toast.success('Remark updated'); onRefresh(); }
+                        try { await api.put(`/leads/${l.id}`, { telecaller_remark: val }); toast.success('Remark updated'); onRefresh(); }
                         catch (err) { toast.error(err.response?.data?.message || 'Update failed'); }
                       }
                     }}>
                       <option value="">— Select —</option>
                       {REMARK_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
-                  ) : <span style={{ fontSize: '0.82rem' }}>{l.voice_of_customer || '—'}</span>}
+                  ) : <span style={{ fontSize: '0.82rem' }}>{l.telecaller_remark || '—'}</span>}
                 </td>
-                {showFollowupDate && (
+                {!isDSE && showFollowupDate && (
                   <td>
-                    <input type="date" className="form-control" style={{ height: 36, fontSize: '0.78rem', width: 130, minHeight: 'auto' }} value={l.follow_up_date ? new Date(l.follow_up_date).toLocaleDateString('en-CA') : ''} onChange={async (e) => {
-                      try { await api.put(`/leads/${l.id}`, { follow_up_date: e.target.value }); toast.success('Scheduled'); onRefresh(); }
-                      catch (err) { toast.error(err.response?.data?.message || 'Update failed'); }
-                    }} />
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                      <input 
+                        type="date" 
+                        className="form-control" 
+                        style={{ height: 36, fontSize: '0.78rem', width: 130, minHeight: 'auto' }} 
+                        id={`date-${l.id}`}
+                        defaultValue={l.follow_up_date ? new Date(l.follow_up_date).toLocaleDateString('en-CA') : ''} 
+                      />
+                      <button 
+                        className="btn btn-primary" 
+                        title="Confirm Schedule"
+                        style={{ padding: '0 8px', height: 36, minWidth: 'auto', background: 'var(--green-500)', borderColor: 'var(--green-600)' }}
+                        onClick={async () => {
+                          const val = document.getElementById(`date-${l.id}`).value;
+                          if (!val) return toast.error('Selection required');
+                          try { 
+                            await api.put(`/leads/${l.id}`, { follow_up_date: val }); 
+                            toast.success('Scheduled'); 
+                            onRefresh(); 
+                          } catch (err) { 
+                            toast.error(err.response?.data?.message || 'Update failed'); 
+                          }
+                        }}
+                      >
+                        <CheckCircle size={15} />
+                      </button>
+                    </div>
                   </td>
                 )}
                 {!isDSE && (
-                  <td>
+                  <td style={{ minWidth: 140 }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--grey-700)' }}>{l.assigned_to_dse || (isCompleted ? '-' : 'Unassigned')}</span>
-                      {l.customer_appointment_date && <span style={{ fontSize: '0.7rem', color: 'var(--orange-500)', fontWeight: 700 }}>Appt: {new Date(l.customer_appointment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>}
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--grey-700)' }}>{l.assigned_to_dse || 'Unassigned'}</span>
+                      {l.customer_appointment_date && (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--orange-600)', fontWeight: 800, textTransform: 'uppercase', marginTop: 2 }}>
+                          Appt: {new Date(l.customer_appointment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        </span>
+                      )}
+                      {l.dse_follow_up_date && (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--tata-blue)', fontWeight: 800, textTransform: 'uppercase', marginTop: 2 }}>
+                          Next: {new Date(l.dse_follow_up_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        </span>
+                      )}
                     </div>
                   </td>
                 )}
                 {showFieldInsight && (
                   <td style={{ textAlign: 'center' }}>
-                    {l.last_updated_by === 'DSE' ? (
-                      <button onClick={() => setViewLead(l)} style={{ background: 'none', border: '1px solid var(--tata-blue)', color: 'var(--tata-blue)', padding: '5px 10px', borderRadius: 7, fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>View Log</button>
-                    ) : <span style={{ fontSize: '0.72rem', color: 'var(--grey-300)' }}>No Log</span>}
+                    {(l.customer_response || (l.visit_status && l.visit_status !== 'Not Visited') || l.deal_stage) ? (
+                      <button 
+                        onClick={() => setViewLead(l)} 
+                        style={{ 
+                          background: 'white', 
+                          border: '1.2px solid var(--tata-blue)', 
+                          color: 'var(--tata-blue)', 
+                          padding: '6px 16px', 
+                          borderRadius: 100, 
+                          fontSize: '0.7rem', 
+                          fontWeight: 700, 
+                          cursor: 'pointer' 
+                        }}
+                      >
+                        View Log
+                      </button>
+                    ) : !l.assigned_to_dse ? (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--grey-300)', fontWeight: 600 }}>-</span>
+                    ) : (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--grey-400)', fontWeight: 600, fontStyle: 'italic' }}>No Logs</span>
+                    )}
                   </td>
                 )}
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   {!isDSE ? (
-                    <select className="form-select" style={{ fontWeight: 700, fontSize: '0.75rem', background: l.status === 'Completed' ? 'var(--green-50)' : 'var(--yellow-50)', color: l.status === 'Completed' ? 'var(--green-700)' : 'var(--yellow-700)', height: 32, minHeight: 'auto' }} value={l.status} onChange={async (e) => {
-                      const newStatus = e.target.value;
-                      if (newStatus === 'Completed' && !l.voice_of_customer) { toast.error('Please select a Telecaller Remark before marking as Completed'); return; }
-                      try { await api.put(`/leads/${l.id}`, { status: newStatus }); toast.success(`Marked as ${newStatus}`); onRefresh(); }
-                      catch { toast.error('Failed to update status'); }
+                    <select 
+                      className={`badge status-${l.status?.toLowerCase().replace(' ', '-')}`} 
+                      style={{ 
+                        fontWeight: 800, 
+                        fontSize: '0.76rem', 
+                        height: 32, 
+                        minWidth: 125, 
+                        cursor: 'pointer',
+                        padding: '0 12px',
+                        border: '1px solid currentColor',
+                        borderRadius: 100,
+                        textAlign: 'center',
+                        appearance: 'none'
+                      }} 
+                      value={l.status} 
+                      onChange={async (e) => {
+                        const newStatus = e.target.value;
+                        const dateInput = document.getElementById(`date-${l.id}`);
+                        const pendingDate = dateInput ? dateInput.value : null;
+
+                        if (newStatus === 'Completed' && !l.telecaller_remark) { 
+                          toast.error('Please select a Telecaller Remark before marking as Completed'); 
+                          return; 
+                        }
+
+                        try { 
+                          const data = { status: newStatus };
+                          if (pendingDate) data.follow_up_date = pendingDate;
+                          
+                          await api.put(`/leads/${l.id}`, data); 
+                          toast.success('Lead updated successfully'); 
+                          onRefresh(); 
+                        } catch (err) { 
+                          toast.error(err.response?.data?.message || 'Update failed'); 
+                        }
                     }}>
                       {STATUS_OPTIONS_DEALER.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                  ) : <span className={`badge status-${l.status?.toLowerCase().replace(' ', '-')}`}>{l.status}</span>}
+                  ) : (
+                    <span 
+                      className={`badge status-${(l.dse_status || 'In Progress').toLowerCase().replace(' ', '-')}`}
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 125,
+                        height: 32,
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        borderRadius: 100,
+                        textAlign: 'center'
+                      }}
+                    >
+                      {l.dse_status || 'In Progress'}
+                    </span>
+                  )}
                 </td>
                 {isDSE && <td style={{ paddingRight: 20 }}><button className="btn btn-primary btn-icon" onClick={() => setActiveLead(l)}><Edit2 size={15} /></button></td>}
               </tr>
@@ -641,25 +787,49 @@ export default function DealerLeads() {
   const isDSE = user?.role === 'dse';
   let rawActive, rawFollowup, rawCompleted;
 
+  const isInRange = (dateStr) => {
+    if (!dateStr || !dateFrom || !dateTo) return true;
+    const d = new Date(dateStr).setHours(0,0,0,0);
+    const start = new Date(dateFrom).setHours(0,0,0,0);
+    const end = new Date(dateTo).setHours(0,0,0,0);
+    return d >= start && d <= end;
+  };
+
+  const now = new Date().setHours(0, 0, 0, 0);
+
+  // A lead is scheduled if it has a follow-up date within the selected range AND that date is today or in the future
+  const isScheduled = (l) => {
+    if (!l.follow_up_date || !isInRange(l.follow_up_date)) return false;
+    
+    // RULE (DSE): "Only leads with a Follow-up Date entered by the DSE should appear in Scheduled Follow-ups."
+    if (isDSE && l.last_updated_by !== 'DSE') return false;
+
+    const fDate = new Date(l.follow_up_date).setHours(0, 0, 0, 0);
+    return fDate >= now;
+  };
+
+  rawFollowup = leads.filter(l => isScheduled(l));
+
   if (isDSE) {
-    rawCompleted = leads.filter(l => l.status === 'Completed' && l.last_updated_by === 'DSE');
-    rawFollowup = leads.filter(l => {
-      if (rawCompleted.includes(l)) return false;
-      if (!l.follow_up_date) return false;
-      const fDate = l.follow_up_date.split('T')[0];
-      return fDate >= dateFrom && fDate <= dateTo;
-    });
-    rawActive = leads.filter(l => !rawCompleted.includes(l) && !rawFollowup.includes(l));
+    // DSE LOGIC: Priority on Scheduling and Personal Completion
+    // 1. Scheduled: Leads with future follow-up dates entered by DSE
+    rawFollowup = leads.filter(l => isScheduled(l));
+    
+    // 2. Completed: Leads marked Completed personally (tracked by dse_status)
+    rawCompleted = leads.filter(l => l.dse_status === 'Completed' && !isScheduled(l));
+    
+    // 3. Active (Pending): Leads assigned to them that are neither scheduled nor personally completed
+    rawActive = leads.filter(l => !rawFollowup.includes(l) && !rawCompleted.includes(l));
   } else {
-    rawCompleted = leads.filter(l => l.status === 'Completed');
-    rawFollowup = leads.filter(l => l.status !== 'Completed' && l.follow_up_date && l.follow_up_date.split('T')[0] >= dateFrom && l.follow_up_date.split('T')[0] <= dateTo);
-    rawActive = leads.filter(l => {
-      if (l.status === 'Completed') return false;
-      const fDate = l.follow_up_date ? l.follow_up_date.split('T')[0] : null;
-      if (rawFollowup.includes(l)) return false;
-      if (fDate && fDate > dateTo) return false;
-      return true;
-    });
+    // DEALER LOGIC: Priority on Scheduling for Global Persistence
+    // 1. Scheduled: ANY active or completed lead with a future follow-up date stays here
+    rawFollowup = leads.filter(l => isScheduled(l));
+    
+    // 2. Completed: Only leads marked Completed that are NO LONGER scheduled
+    rawCompleted = leads.filter(l => l.status === 'Completed' && !isScheduled(l));
+    
+    // 3. Pending (Active): Everything else that is not yet Completed or Scheduled
+    rawActive = leads.filter(l => l.status !== 'Completed' && !rawFollowup.includes(l));
   }
 
   const getUniqueOpts = (data, key, formatter = v => v) =>
@@ -727,21 +897,7 @@ export default function DealerLeads() {
         <input placeholder="Quick Lead Lookup..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {/* DSE stats strip */}
-      {isDSE && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: 28 }}>
-          {[
-            { label: 'Today Leads', count: leads.filter(l => l.lead_date?.split('T')[0] === new Date().toISOString().split('T')[0]).length, color: 'var(--tata-blue)' },
-            { label: 'Today Pending', count: leads.filter(l => l.status !== 'Completed' && (l.lead_date?.split('T')[0] === new Date().toISOString().split('T')[0] || (l.follow_up_date && l.follow_up_date.split('T')[0] === new Date().toISOString().split('T')[0]))).length, color: 'var(--orange-500)' },
-            { label: 'Today Completed', count: leads.filter(l => l.status === 'Completed' && l.updated_at?.split('T')[0] === new Date().toISOString().split('T')[0]).length, color: 'var(--green-500)' }
-          ].map((stat, i) => (
-            <div key={i} style={{ padding: '16px 18px', background: '#fff', borderRadius: 14, borderLeft: `4px solid ${stat.color}`, boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--grey-500)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{stat.label}</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--grey-900)' }}>{stat.count}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* DSE stats strip removed as per request */}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 36, paddingBottom: 80 }}>
         {active.length > 0 && (

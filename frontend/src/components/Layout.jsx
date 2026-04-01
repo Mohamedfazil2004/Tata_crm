@@ -32,32 +32,6 @@ export default function Layout() {
     return true;
   });
 
-  // 1. PWA Role-Based Registration (ONLY for DSE)
-  useEffect(() => {
-    if (user?.role !== 'dse') return;
-
-    // Dynamic Manifest Injection
-    const manifestLink = document.createElement('link');
-    manifestLink.rel = 'manifest';
-    manifestLink.href = '/manifest.json';
-    manifestLink.id = 'pwa-manifest';
-    if (!document.getElementById('pwa-manifest')) {
-      document.head.appendChild(manifestLink);
-    }
-
-    // Dynamic Service Worker Registration
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('DSE Service Worker: Active', reg.scope))
-        .catch(err => console.warn('PWA Registration Failed', err));
-    }
-
-    return () => {
-      const existing = document.getElementById('pwa-manifest');
-      if (existing) document.head.removeChild(existing);
-    };
-  }, [user]);
-
   // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false);

@@ -25,16 +25,16 @@ router.get('/', authenticate, async (req, res) => {
 
     // Fetch remarks distribution for each dealer for the pie charts
     const [remarksData] = await db.query(`
-      SELECT dealer_id, consolidated_remark, COUNT(*) as count 
+      SELECT dealer_id, telecaller_remark, COUNT(*) as count 
       FROM leads 
-      WHERE consolidated_remark IS NOT NULL AND consolidated_remark != ''
-      GROUP BY dealer_id, consolidated_remark
+      WHERE telecaller_remark IS NOT NULL AND telecaller_remark != ''
+      GROUP BY dealer_id, telecaller_remark
     `);
 
     const result = dealers.map(d => {
       const dealerRemarks = remarksData
         .filter(r => r.dealer_id === d.id)
-        .map(r => ({ label: r.consolidated_remark, value: r.count }));
+        .map(r => ({ label: r.telecaller_remark, value: r.count }));
       return { ...d, remarks_distribution: dealerRemarks };
     });
 
@@ -53,12 +53,13 @@ router.get('/:id', authenticate, async (req, res) => {
 
     // Get districts
     const [districts] = await db.query(
-      `SELECT district FROM district_dealer_mapping WHERE dealer_id = ?`,
+      `SELECT dealer_district as district FROM district_dealer_mapping WHERE dealer_id = ?`,
       [req.params.id]
     );
 
     res.json({ success: true, data: { ...rows[0], districts } });
   } catch (err) {
+    console.error('Fetch dealer details error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

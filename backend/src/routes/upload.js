@@ -299,17 +299,14 @@ router.post('/leads', authenticate, authorize('admin', 'campaign_team'), upload.
       }
     }
 
-    // Bulk insert leads
-    if (insertedLeads.length > 0) {
-      const values = insertedLeads.map(l => [
-        l.lead_date, l.full_name, l.location, l.model, l.phone_number,
-        l.dealer_id, l.dealer_name, l.upload_batch_id, l.status
-      ]);
-      await db.query(
-        `INSERT INTO leads (lead_date, full_name, location, model, phone_number, dealer_id, dealer_name, upload_batch_id, status) VALUES ?`,
-        [values]
-      );
-    }
+        const values = insertedLeads.map(l => [
+          l.lead_date, l.full_name, l.location, l.model, l.phone_number,
+          l.dealer_id, l.dealer_name, l.upload_batch_id, l.status, 'In Progress'
+        ]);
+        await db.query(
+          `INSERT INTO leads (lead_date, full_name, location, model, phone_number, dealer_id, dealer_name, upload_batch_id, status, dse_status) VALUES ?`,
+          [values]
+        );
 
     // Update batch record
     await db.query(

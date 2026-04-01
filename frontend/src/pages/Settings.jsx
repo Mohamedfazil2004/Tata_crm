@@ -96,29 +96,64 @@ export default function Settings() {
 
         {/* System Settings (Admin Only) */}
         {isAdmin && (
-          <div className="card col-12">
-            <div className="card-header"><div className="card-title"><Bell size={16} />System Preferences</div></div>
-            <div className="card-body">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--grey-100)' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Email Notifications</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--grey-400)' }}>Notify dealers when new leads are assigned</div>
+          <>
+            <div className="card col-12">
+              <div className="card-header"><div className="card-title"><Bell size={16} />System Preferences</div></div>
+              <div className="card-body">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--grey-100)' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Email Notifications</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--grey-400)' }}>Notify dealers when new leads are assigned</div>
+                  </div>
+                  <div style={{ width: 44, height: 24, borderRadius: 100, background: 'var(--tata-blue)', position: 'relative', cursor: 'pointer' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', right: 3, top: 3 }} />
+                  </div>
                 </div>
-                <div style={{ width: 44, height: 24, borderRadius: 100, background: 'var(--tata-blue)', position: 'relative', cursor: 'pointer' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', right: 3, top: 3 }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Automated Date Adjustment</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--grey-400)' }}>Convert old lead dates to previous day</div>
-                </div>
-                <div style={{ width: 44, height: 24, borderRadius: 100, background: 'var(--tata-blue)', position: 'relative', cursor: 'pointer' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', right: 3, top: 3 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Automated Date Adjustment</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--grey-400)' }}>Convert old lead dates to previous day</div>
+                  </div>
+                  <div style={{ width: 44, height: 24, borderRadius: 100, background: 'var(--tata-blue)', position: 'relative', cursor: 'pointer' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', right: 3, top: 3 }} />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+
+            <div className="card col-12" style={{ borderColor: 'var(--red-200)', background: 'var(--red-50)08' }}>
+              <div className="card-header" style={{ borderBottomColor: 'var(--red-100)' }}>
+                <div className="card-title" style={{ color: 'var(--red-600)' }}><Shield size={16} /> Danger Zone</div>
+              </div>
+              <div className="card-body">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--grey-900)' }}>Wipe All CRM Data</div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--grey-500)', marginTop: 4 }}>This will permanently delete all leads, campaign metrics, and upload history. This action cannot be undone.</div>
+                  </div>
+                  <button 
+                    className="btn btn-danger" 
+                    onClick={async () => {
+                      if (window.confirm("⚠️ ARE YOU SURE? This will permanently delete ALL leads and campaign data! This cannot be undone.")) {
+                        const loadingToast = toast.loading("Clearing all data...");
+                        try {
+                          await api.delete('/admin/clear-all');
+                          toast.success("All data cleared successfully!");
+                          window.location.reload();
+                        } catch (err) {
+                          toast.error(err.response?.data?.message || "Failed to clear data.");
+                        } finally {
+                          toast.dismiss(loadingToast);
+                        }
+                      }
+                    }}
+                  >
+                    Clear All Data
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

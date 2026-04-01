@@ -59,13 +59,15 @@ router.get('/', authenticate, async (req, res) => {
       where.push('l.status = ?');
       params.push(status);
     }
-    if (date_from) {
-      where.push('l.lead_date >= ?');
-      params.push(date_from);
-    }
-    if (date_to) {
-      where.push('l.lead_date <= ?');
-      params.push(date_to);
+    if (date_from && date_to) {
+      where.push('(l.lead_date BETWEEN ? AND ? OR l.follow_up_date BETWEEN ? AND ? OR (l.follow_up_date IS NOT NULL AND l.status != "Completed"))');
+      params.push(date_from, date_to, date_from, date_to);
+    } else if (date_from) {
+      where.push('(l.lead_date >= ? OR l.follow_up_date >= ? OR (l.follow_up_date IS NOT NULL AND l.status != "Completed"))');
+      params.push(date_from, date_from);
+    } else if (date_to) {
+      where.push('(l.lead_date <= ? OR l.follow_up_date <= ? OR (l.follow_up_date IS NOT NULL AND l.status != "Completed"))');
+      params.push(date_to, date_to);
     }
 
     const whereStr = where.join(' AND ');
@@ -87,7 +89,6 @@ router.get('/', authenticate, async (req, res) => {
                WHEN follow_up_date = CURDATE() THEN 1 
                WHEN follow_up_date IS NULL THEN 2
                ELSE 3 END) ASC,
-         (CASE WHEN priority = 'Hot' THEN 0 WHEN priority = 'Warm' THEN 1 ELSE 2 END) ASC,
          follow_up_date ASC,
          lead_date DESC 
        LIMIT ? OFFSET ?`,
@@ -140,8 +141,8 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, upload.single('jio_tag_photo'), async (req, res) => {
   try {
     const { 
-      follow_up_date, voice_of_customer, consolidated_remark, status, assigned_to_dse,
-      visit_status, interest_level, deal_stage, expected_purchase_timeline, budget, dse_notes, lost_reason,
+      follow_up_date, dse_follow_up_date, telecaller_remark, status, assigned_to_dse,
+      visit_status, interest_level, deal_stage, expected_purchase_timeline, budget, customer_response, lost_reason,
       customer_appointment_date, customer_location
     } = req.body;
 
@@ -171,54 +172,57 @@ router.put('/:id', authenticate, upload.single('jio_tag_photo'), async (req, res
     }
     
     // Core fields
-    if (voice_of_customer !== undefined) updateFields.voice_of_customer = voice_of_customer;
-    if (consolidated_remark !== undefined) updateFields.consolidated_remark = consolidated_remark;
-    if (status !== undefined) updateFields.status = status;
-    if (assigned_to_dse !== undefined) updateFields.assigned_to_dse = assigned_to_dse;
-    if (req.body.priority !== undefined) updateFields.priority = req.body.priority;
+    if (telecaller_remark !== undefined) updateFields.telecaller_remark = telecaller_remark;
+    
+    // Dealer Status (Only update status via Dealer role or API if not DSE)
+    if (req.user.role === 'dealer' && status !== undefined) {
+      updateFields.status = status;
+    }
+
+    if (assigned_to_dse !== undefined) {
+        updateFields.assigned_to_dse = assigned_to_dse;
+        // Optionally reset dse_status to In Progress when reassigning? User said:
+        // "When a new lead is assigned to a DSE... default status must always be In Progress"
+        updateFields.dse_status = 'In Progress'; 
+    }
+
     if (customer_appointment_date !== undefined) updateFields.customer_appointment_date = customer_appointment_date || null;
     if (customer_location !== undefined) updateFields.customer_location = customer_location;
     
-    // DSE fields
-    if (visit_status !== undefined) updateFields.visit_status = visit_status;
-    if (interest_level !== undefined) updateFields.interest_level = interest_level;
-    if (deal_stage !== undefined) {
-      updateFields.deal_stage = deal_stage;
-      if (deal_stage === 'Booking Done') updateFields.status = 'Completed';
-      if (deal_stage === 'Lost') updateFields.lost_reason = lost_reason;
+    // DSE fields & Logic
+    if (req.user.role === 'dse') {
+      updateFields.last_updated_by = 'DSE';
+      
+      // RULE: "The lead status should remain In Progress until the DSE submits the Activity Log form. 
+      // Only after the DSE fills the Activity Log form and submits it, the lead status should change to Completed in the DSE page."
+      // Since any PUT from DSE role is an "Activity Log submission":
+      updateFields.dse_status = 'Completed'; 
+
+      if (visit_status !== undefined) updateFields.visit_status = visit_status;
+      if (interest_level !== undefined) updateFields.interest_level = interest_level;
+      if (deal_stage !== undefined) {
+        updateFields.deal_stage = deal_stage;
+        // Note: Booking Done still marks the MASTER status as Completed?
+        // Let's keep master status for Dealer.
+        if (deal_stage === 'Booking Done') updateFields.status = 'Completed';
+        if (deal_stage === 'Lost') updateFields.lost_reason = lost_reason;
+      }
+      if (expected_purchase_timeline !== undefined) updateFields.expected_purchase_timeline = expected_purchase_timeline;
+      if (budget !== undefined) updateFields.budget = (budget === '' || budget === null) ? null : budget;
+      if (customer_response !== undefined) updateFields.customer_response = customer_response;
+      if (dse_follow_up_date !== undefined) updateFields.dse_follow_up_date = dse_follow_up_date || null;
+    } else if (req.user.role === 'dealer') {
+      updateFields.last_updated_by = 'Telecaller';
     }
-    if (expected_purchase_timeline !== undefined) updateFields.expected_purchase_timeline = expected_purchase_timeline;
-    if (budget !== undefined) updateFields.budget = (budget === '' || budget === null) ? null : budget;
-    if (dse_notes !== undefined) updateFields.dse_notes = dse_notes;
 
     // Jio Tag Photo handle
     if (req.file) {
       updateFields.jio_tag_photo = `/uploads/jio-tags/${req.file.filename}`;
     }
 
-    // Set updated_by
-    if (req.user.role === 'dse') {
-      updateFields.last_updated_by = 'DSE';
-    } else if (req.user.role === 'dealer') {
-      updateFields.last_updated_by = 'Telecaller';
-    }
-
-    // Smart Automation: Priority
-    if (interest_level !== undefined || expected_purchase_timeline !== undefined) {
-      const currentInterest = interest_level || rows[0].interest_level;
-      const currentTimeline = expected_purchase_timeline || rows[0].expected_purchase_timeline;
-
-      if (currentInterest === 'High' && currentTimeline === '0–30 days') {
-        updateFields.priority = 'Hot';
-      } else if (currentInterest === 'Medium') {
-        updateFields.priority = 'Warm';
-      } else if (currentInterest === 'Low') {
-        updateFields.priority = 'Cold';
-      }
-    }
     
     // Auto-increment follow_up_count
-    if (status || voice_of_customer || consolidated_remark || assigned_to_dse || visit_status || deal_stage) {
+    if (status || telecaller_remark || assigned_to_dse || visit_status || deal_stage) {
       updateFields.follow_up_count = (rows[0].follow_up_count || 0) + 1;
       updateFields.last_contacted_date = new Date();
     }
@@ -244,8 +248,8 @@ router.put('/:id', authenticate, upload.single('jio_tag_photo'), async (req, res
 
     res.json({ success: true, message: 'Lead updated successfully' });
   } catch (err) {
-    console.error('Update lead error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('DSE/Dealer update error:', err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
 
